@@ -1,0 +1,56 @@
+<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#182433"><link rel="manifest" href="manifest.json">
+<title>Meu Ponto — Espelho Empresa</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f7;color:#182433;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.w{max-width:900px;margin:auto;padding:15px}
+header{background:#182433;color:#fff;padding:20px 15px}h1{margin:0;font-size:24px}header p{margin:4px 0 0;opacity:.75}
+.c{background:#fff;margin:13px 0;padding:16px;border-radius:16px;box-shadow:0 2px 9px #0001}.g{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.m{background:#f5f7f9;padding:12px;border-radius:11px}.m small{display:block;color:#687386}.m b{font-size:20px}
+button{border:0;border-radius:11px;padding:13px;font-weight:700}.pri{background:#182433;color:#fff}.yel{background:#e8ad27}.red{background:#ad2b20;color:#fff}.sec{background:#e9edf1}.btns{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+label{display:block;font-size:12px;color:#667085;margin:9px 0 4px}input,select,textarea{width:100%;padding:10px;border:1px solid #cdd4dc;border-radius:9px;font:inherit}
+.pos{color:#087a45}.neg{color:#b42318}.note{font-size:12px;color:#667085;line-height:1.45}.tag{padding:3px 7px;background:#edf1f5;border-radius:7px;font-size:11px}
+table{width:100%;border-collapse:collapse;font-size:11px}td,th{padding:8px 4px;border-bottom:1px solid #edf0f2;white-space:nowrap;text-align:left}
+@media(max-width:570px){.g,.btns{grid-template-columns:1fr}table{font-size:10px}}
+</style></head><body>
+<header><div class="w" style="padding:0"><h1>Meu Ponto</h1><p>Espelho pessoal aproximado do controle da empresa</p></div></header><main class="w">
+<div class="c"><div id="date" class="note"></div><div class="g" style="margin-top:10px">
+<div class="m"><small>Horas apuradas hoje</small><b id="worked">—</b></div>
+<div class="m"><small>Diferença bruta</small><b id="raw">—</b></div>
+<div class="m"><small>Compensação/ajuste</small><b id="adj">—</b></div>
+<div class="m"><small>Saldo acumulado</small><b id="bank">+0h00</b></div></div></div>
+
+<div class="c"><h3>Marcações</h3><div class="btns">
+<button class="pri" onclick="punch('entrada')">Registrar entrada</button><button class="yel" onclick="punch('almoco')">Entrada para almoço</button>
+<button class="red" onclick="punch('saida')">Registrar saída</button><button class="sec" onclick="edit()">Editar marcações</button></div>
+<p class="note">O retorno do almoço é calculado automaticamente 1 hora depois. Ex.: almoço 11:00 → retorno considerado 12:00.</p>
+<div id="marks"></div></div>
+
+<div class="c"><h3>Tratamento semelhante ao espelho</h3>
+<label>Tipo do dia</label><select id="tipo" onchange="saveDay()">
+<option value="normal">Normal — horário autorizado 07h às 15h</option><option value="contratual">Jornada contratual 08h às 17h</option>
+<option value="sabado">Sábado / escala 08h às 12h</option><option value="folga">Folga / DSR</option><option value="feriado">Feriado</option><option value="abonado">Abonado/justificado</option></select>
+<div class="g"><div><label>Compensação da empresa</label><select id="sinal" onchange="saveDay()"><option value="0">Sem ajuste</option><option value="1">Compensação (+)</option><option value="-1">Compensação (-)</option></select></div>
+<div><label>Valor da compensação (HH:MM)</label><input id="ajuste" value="00:00" onchange="saveDay()"></div></div>
+<label>Observação</label><textarea id="obs" rows="2" onchange="saveDay()" placeholder="Ex.: jornada 07h–15h autorizada pelo supervisor"></textarea>
+<p class="note">O cartão fornecido mostra lançamentos “Compensacao(+)” e “Compensacao(-)”, mas a imagem não informa a regra interna que gera cada valor. Por isso esta versão calcula as horas pelas marcações e permite lançar o mesmo ajuste que aparecer no sistema da empresa, evitando inventar uma regra de folha.</p></div>
+
+<div class="c"><h3>Como o cálculo funciona</h3><p class="note"><b>Normal autorizado:</b> referência operacional 07:00–15:00 com 1h de almoço. <b>Contratual:</b> 08:00–17:00 com 1h de almoço = 8h. O app mostra separadamente a diferença bruta em relação às 8h e a compensação lançada pela empresa. Dias de folga, DSR, feriado ou abonados não geram débito automaticamente.</p></div>
+
+<div class="c"><h3>Histórico</h3><div style="overflow:auto"><table><thead><tr><th>Data</th><th>Ent.</th><th>Alm.</th><th>Ret.</th><th>Saída</th><th>Trab.</th><th>Bruto</th><th>Comp.</th><th>Saldo</th></tr></thead><tbody id="hist"></tbody></table></div>
+<div class="btns" style="margin-top:12px"><button class="sec" onclick="csv()">Exportar CSV</button><button class="sec" onclick="backup()">Backup JSON</button></div></div>
+<p class="note">Ferramenta pessoal de conferência; o espelho oficial da empresa prevalece.</p>
+</main><script>
+const K='pontoEspelhoV3';let D=JSON.parse(localStorage.getItem(K)||'{}');const p=n=>String(n).padStart(2,'0'),key=()=>{let d=new Date();return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`},now=()=>{let d=new Date();return `${p(d.getHours())}:${p(d.getMinutes())}`};
+const mm=t=>{if(!t)return 0;let[a,b]=t.split(':').map(Number);return a*60+b}, fm=n=>`${n<0?'-':'+'}${Math.floor(Math.abs(n)/60)}h${p(Math.abs(n)%60)}`, fw=n=>`${Math.floor(n/60)}h${p(n%60)}`;
+function neutral(r){return ['folga','feriado','abonado'].includes(r.tipo)}
+function calc(r){if(!r)return {ok:false};if(neutral(r))return{ok:true,w:0,raw:0,ad:0,bal:0,neutral:true};if(!r.entrada||!r.saida)return{ok:false};let w=mm(r.saida)-mm(r.entrada)-60;if(w<0)w+=1440;let raw=w-480,ad=(Number(r.sinal)||0)*mm(r.ajuste||'00:00');return{ok:true,w,raw,ad,bal:raw+ad}}
+function save(){localStorage.setItem(K,JSON.stringify(D))}
+function punch(x){let k=key(),r=D[k]||{tipo:'normal',sinal:'0',ajuste:'00:00'};r[x]=now();D[k]=r;save();render()}
+function edit(){let k=key(),r=D[k]||{tipo:'normal',sinal:'0',ajuste:'00:00'};for(let x of ['entrada','almoco','saida']){let v=prompt(x.toUpperCase()+' HH:MM',r[x]||'');if(v!==null)r[x]=v}D[k]=r;save();render()}
+function saveDay(){let k=key(),r=D[k]||{};r.tipo=document.querySelector('#tipo').value;r.sinal=document.querySelector('#sinal').value;r.ajuste=document.querySelector('#ajuste').value;r.obs=document.querySelector('#obs').value;D[k]=r;save();render()}
+function render(){let d=new Date(),r=D[key()]||{tipo:'normal',sinal:'0',ajuste:'00:00'},c=calc(r);date.textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});worked.textContent=c.ok?(c.neutral?'Abonado':fw(c.w)):'—';raw.textContent=c.ok?fm(c.raw):'—';raw.className=c.ok?(c.raw>=0?'pos':'neg'):'';adj.textContent=c.ok?fm(c.ad):'—';tipo.value=r.tipo||'normal';sinal.value=r.sinal||'0';ajuste.value=r.ajuste||'00:00';obs.value=r.obs||'';let ret=r.almoco?(()=>{let x=(mm(r.almoco)+60)%1440;return `${p(Math.floor(x/60))}:${p(x%60)}`})():'—';marks.innerHTML=`<p>Entrada: <b>${r.entrada||'—'}</b> · Almoço: <b>${r.almoco||'—'}</b> · Retorno calculado: <b>${ret}</b> · Saída: <b>${r.saida||'—'}</b></p>`;let b=0,rows='';Object.keys(D).sort().forEach(k=>{let q=D[k],z=calc(q);if(z.ok)b+=z.bal});bank.textContent=fm(b);bank.className=b>=0?'pos':'neg';Object.keys(D).sort().reverse().forEach(k=>{let q=D[k],z=calc(q),rt=q.almoco?(()=>{let x=(mm(q.almoco)+60)%1440;return `${p(Math.floor(x/60))}:${p(x%60)}`})():'—';rows+=`<tr><td>${k.split('-').reverse().join('/')}</td><td>${q.entrada||'—'}</td><td>${q.almoco||'—'}</td><td>${rt}</td><td>${q.saida||'—'}</td><td>${z.ok&&!z.neutral?fw(z.w):'—'}</td><td>${z.ok?fm(z.raw):'—'}</td><td>${z.ok?fm(z.ad):'—'}</td><td>${z.ok?fm(z.bal):'—'}</td></tr>`});hist.innerHTML=rows||'<tr><td colspan=9>Sem registros.</td></tr>'}
+function dl(n,t,ty){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()}
+function csv(){let s='Data;Entrada;Almoco;Saida;Tipo;Trabalhado_min;Diferenca_bruta_min;Compensacao_min;Saldo_min;Observacao\n';Object.keys(D).sort().forEach(k=>{let r=D[k],c=calc(r);s+=`${k};${r.entrada||''};${r.almoco||''};${r.saida||''};${r.tipo||''};${c.ok?c.w||0:''};${c.ok?c.raw:''};${c.ok?c.ad:''};${c.ok?c.bal:''};${(r.obs||'').replaceAll(';',',')}\n`});dl('espelho-ponto.csv','\ufeff'+s,'text/csv')}
+function backup(){dl('backup-ponto-v3.json',JSON.stringify(D,null,2),'application/json')}
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});render()
+</script></body></html>
